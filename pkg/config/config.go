@@ -13,6 +13,7 @@ var (
 	PasswordField = field.StringField(
 		"password",
 		field.WithDescription("The Avalara password used to connect to the Avalara API"),
+		field.WithIsSecret(true),
 		field.WithRequired(true),
 	)
 	EnvironmentField = field.StringField(
