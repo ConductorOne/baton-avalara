@@ -5,17 +5,20 @@ import (
 
 	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/test"
+	"github.com/spf13/viper"
 )
 
 func TestConfigs(t *testing.T) {
-	configurationSchema := field.NewConfiguration(
-		ConfigurationFields,
-		FieldRelationships...,
-	)
+	configurationSchema := field.Configuration{
+		Fields:      ConfigurationFields,
+		Constraints: FieldRelationships,
+	}
 
 	testCases := []test.TestCase{
 		// Add test cases here.
 	}
 
-	test.ExerciseTestCases(t, configurationSchema, ValidateConfig, testCases)
+	test.ExerciseTestCases(t, configurationSchema, func(v *viper.Viper) error {
+		return nil
+	}, testCases)
 }
