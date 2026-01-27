@@ -1,6 +1,7 @@
 GOOS = $(shell go env GOOS)
 GOARCH = $(shell go env GOARCH)
 BUILD_DIR = dist/${GOOS}_${GOARCH}
+GENERATED_CONF = pkg/config/conf.gen.go
 
 ifeq ($(GOOS),windows)
 OUTPUT_PATH = ${BUILD_DIR}/baton-avalara.exe
@@ -8,8 +9,14 @@ else
 OUTPUT_PATH = ${BUILD_DIR}/baton-avalara
 endif
 
+.PHONY: generate
+generate: $(GENERATED_CONF)
+
+$(GENERATED_CONF): pkg/config/config.go go.mod
+	go generate ./pkg/config
+
 .PHONY: build
-build: ## Build the baton-avalara binary
+build: $(GENERATED_CONF) ## Build the baton-avalara binary
 	go build -o ${OUTPUT_PATH} ./cmd/baton-avalara
 
 .PHONY: build-debug
