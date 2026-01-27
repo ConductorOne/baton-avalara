@@ -5,6 +5,7 @@ import (
 
 	cfg "github.com/conductorone/baton-avalara/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/test"
+	"github.com/spf13/viper"
 )
 
 func TestConfigs(t *testing.T) {
@@ -12,7 +13,7 @@ func TestConfigs(t *testing.T) {
 		// Add test cases here.
 	}
 
-	test.ExerciseTestCases(t, cfg.Config, func(c *cfg.Avalara) error {
-		return cfg.ValidateConfig(c)
+	test.ExerciseTestCases(t, cfg.Config, func(v *viper.Viper) error {
+		return nil
 	}, testCases)
 }
