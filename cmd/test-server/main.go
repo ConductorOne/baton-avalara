@@ -39,7 +39,7 @@ func main() {
 
 	port := 8080
 	log.Printf("Starting test server on port %d...\n", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)) //nolint:gosec // This is a test server.
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)) //nolint:gosec,gocritic // This is a test server.
 }
 
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {

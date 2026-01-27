@@ -1,39 +1,42 @@
 name: ci
-on: pull_request
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches:
+      - main
 jobs:
   go-lint:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
-      - name: Checkout code
-        uses: actions/checkout@v4
+          go-version-file: 'go.mod'
       - name: Run linters
-        uses: golangci/golangci-lint-action@v5
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
           args: --timeout=3m
   go-test:
     strategy:
       matrix:
-        go-version: [1.22.x]
         platform: [ubuntu-latest]
     runs-on: ${{ matrix.platform }}
     steps:
-      - name: Install Go
-        if: success()
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
       - name: go tests
-        run: (set -o pipefail && go test -v -covermode=count -json ./... | tee test.json)
+        run: go test -v -covermode=count -json ./... > test.json
       - name: annotate go tests
         if: always()
-        uses: guyarb/golang-test-annotations@v0.5.1
+        uses: guyarb/golang-test-annotations@v0.6.0
         with:
           test-results: test.json
 
@@ -46,12 +49,12 @@ jobs:
       TEST_SERVER_PORT: 8080
       BATON_ENVIRONMENT: "test"
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
-      - name: Checkout code
-        uses: actions/checkout@v4
+          go-version-file: 'go.mod'
       - name: Build baton-avalara
         run: go build ./cmd/baton-avalara
       - name: Build test server
@@ -88,20 +91,19 @@ jobs:
         run: |
           # Get synced entitlements
           SYNCED_ENTITLEMENTS=$(baton entitlements --output-format=json | jq -c '.entitlements')
-          
+
           # Get test server security roles (which correspond to entitlements)
           SERVER_ROLES=$(curl -s -u testuser:testpass -H "X-Avalara-Client: test" "http://localhost:${{ env.TEST_SERVER_PORT }}/api/v2/definitions/securityroles" | jq -c '.value')
-          
+
           # Compare entitlements count
           SYNCED_COUNT=$(echo $SYNCED_ENTITLEMENTS | jq 'length')
           SERVER_COUNT=$(echo $SERVER_ROLES | jq 'length')
-          
+
           if [ "$SYNCED_COUNT" -ne "$SERVER_COUNT" ]; then
             echo "Mismatch in entitlement count. Synced: $SYNCED_COUNT, Server: $SERVER_COUNT"
             exit 1
           fi
-          
-          # Similar comparisons can be added for principals and grants
-          
-          echo "Synced data matches test server data"
 
+          # Similar comparisons can be added for principals and grants
+
+          echo "Synced data matches test server data"

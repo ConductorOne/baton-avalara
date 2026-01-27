@@ -3,19 +3,17 @@ package main
 import (
 	"testing"
 
-	"github.com/conductorone/baton-sdk/pkg/field"
+	cfg "github.com/conductorone/baton-avalara/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/test"
+	"github.com/spf13/viper"
 )
 
 func TestConfigs(t *testing.T) {
-	configurationSchema := field.NewConfiguration(
-		ConfigurationFields,
-		FieldRelationships...,
-	)
-
 	testCases := []test.TestCase{
 		// Add test cases here.
 	}
 
-	test.ExerciseTestCases(t, configurationSchema, ValidateConfig, testCases)
+	test.ExerciseTestCases(t, cfg.Config, func(v *viper.Viper) error {
+		return nil
+	}, testCases)
 }
