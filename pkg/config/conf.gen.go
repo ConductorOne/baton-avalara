@@ -7,6 +7,7 @@ type Avalara struct {
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
 	Environment string `mapstructure:"environment"`
+	BaseUrl string `mapstructure:"base-url"`
 }
 
 func (c *Avalara) findFieldByTag(tagValue string) (any, bool) {

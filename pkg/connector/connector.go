@@ -58,9 +58,10 @@ func (d *Avalara) Validate(ctx context.Context) (annotations.Annotations, error)
 func New(
 	ctx context.Context,
 	environment string,
+	baseURL string,
 	username, password string,
 ) (*Avalara, error) {
-	client, err := avalaraclient.GetAvalaraClient(ctx, environment, username, password)
+	client, err := avalaraclient.GetAvalaraClient(ctx, environment, baseURL, username, password)
 	if err != nil {
 		return nil, err
 	}

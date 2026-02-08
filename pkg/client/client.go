@@ -44,9 +44,11 @@ type PaginatedResponse interface {
 }
 
 // NewAvalaraClient creates a new instance of AvalaraClient.
-func NewAvalaraClient(environment string, httpClient *uhttp.BaseHttpClient) *AvalaraClient {
+func NewAvalaraClient(environment, baseURLOverride string, httpClient *uhttp.BaseHttpClient) *AvalaraClient {
 	var baseURL string
-	if strings.HasPrefix(strings.ToLower(environment), "http") {
+	if baseURLOverride != "" {
+		baseURL = baseURLOverride
+	} else if strings.HasPrefix(strings.ToLower(environment), "http") {
 		baseURL = environment
 	} else {
 		switch environment {
@@ -340,7 +342,7 @@ func (c *AvalaraClient) Ping(ctx context.Context) (*PingResponse, error) {
 }
 
 // GetAvalaraClient creates and returns a configured AvalaraClient.
-func GetAvalaraClient(ctx context.Context, environment, username, password string) (*AvalaraClient, error) {
+func GetAvalaraClient(ctx context.Context, environment, baseURL, username, password string) (*AvalaraClient, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, fmt.Errorf("error creating HTTP client: %w", err)
@@ -348,7 +350,7 @@ func GetAvalaraClient(ctx context.Context, environment, username, password strin
 
 	baseHttpClient := uhttp.NewBaseHttpClient(httpClient)
 
-	client := NewAvalaraClient(environment, baseHttpClient)
+	client := NewAvalaraClient(environment, baseURL, baseHttpClient)
 	client.AddCredentials(username, password)
 	return client, nil
 }

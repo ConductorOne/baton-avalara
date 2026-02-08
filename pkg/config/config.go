@@ -21,6 +21,10 @@ var (
 		field.WithDescription("The Avalara environment to connect to (production or sandbox)"),
 		field.WithDefaultValue("production"),
 	)
+	BaseURLField = field.StringField(
+		"base-url",
+		field.WithDescription("Override the Avalara API URL (for testing)"),
+	)
 
 	FieldRelationships = []field.SchemaFieldRelationship{
 		field.FieldsRequiredTogether(
@@ -35,6 +39,7 @@ var Config = field.NewConfiguration([]field.SchemaField{
 	UsernameField,
 	PasswordField,
 	EnvironmentField,
+	BaseURLField,
 }, field.WithConstraints(FieldRelationships...))
 
 func ValidateConfig(cfg *Avalara) error {
