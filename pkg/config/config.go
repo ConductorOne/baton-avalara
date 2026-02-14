@@ -24,6 +24,7 @@ var (
 	BaseURLField = field.StringField(
 		"base-url",
 		field.WithDescription("Override the Avalara API URL (for testing)"),
+		field.WithHidden(true),
 	)
 
 	FieldRelationships = []field.SchemaFieldRelationship{
