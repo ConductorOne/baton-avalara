@@ -46,11 +46,12 @@ type PaginatedResponse interface {
 // NewAvalaraClient creates a new instance of AvalaraClient.
 func NewAvalaraClient(environment, baseURLOverride string, httpClient *uhttp.BaseHttpClient) *AvalaraClient {
 	var baseURL string
-	if baseURLOverride != "" {
+	switch {
+	case baseURLOverride != "":
 		baseURL = baseURLOverride
-	} else if strings.HasPrefix(strings.ToLower(environment), "http") {
+	case strings.HasPrefix(strings.ToLower(environment), "http"):
 		baseURL = environment
-	} else {
+	default:
 		switch environment {
 		case "sandbox":
 			baseURL = SandboxBaseURL
