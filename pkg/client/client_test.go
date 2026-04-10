@@ -35,26 +35,26 @@ func newTestClient(response *http.Response, err error) *AvalaraClient {
 	transport := &testRoundTripper{response: response, err: err}
 	httpClient := &http.Client{Transport: transport}
 	baseHttpClient := uhttp.NewBaseHttpClient(httpClient)
-	return NewAvalaraClient("", baseHttpClient)
+	return NewAvalaraClient("", "", baseHttpClient)
 }
 
 func TestNewAvalaraClient(t *testing.T) {
 	t.Run("Production environment", func(t *testing.T) {
-		client := NewAvalaraClient("", nil)
+		client := NewAvalaraClient("", "", nil)
 		if client.baseURL != ProductionBaseURL {
 			t.Errorf("Expected baseURL to be %s, got %s", ProductionBaseURL, client.baseURL)
 		}
 	})
 
 	t.Run("Sandbox environment", func(t *testing.T) {
-		client := NewAvalaraClient("sandbox", nil)
+		client := NewAvalaraClient("sandbox", "", nil)
 		if client.baseURL != SandboxBaseURL {
 			t.Errorf("Expected baseURL to be %s, got %s", SandboxBaseURL, client.baseURL)
 		}
 	})
 
 	t.Run("Client header", func(t *testing.T) {
-		client := NewAvalaraClient("", nil)
+		client := NewAvalaraClient("", "", nil)
 		expectedPrefix := "baton-avalara; 1.0.0; Go SDK; API_VERSION"
 		if !strings.HasPrefix(client.clientHeader, expectedPrefix) {
 			t.Errorf("Expected clientHeader to start with %s, got %s", expectedPrefix, client.clientHeader)
@@ -64,7 +64,7 @@ func TestNewAvalaraClient(t *testing.T) {
 
 func TestAvalaraClient_AddCredentials(t *testing.T) {
 	// Create a new AvalaraClient.
-	client := NewAvalaraClient("", nil)
+	client := NewAvalaraClient("", "", nil)
 
 	// Test credentials.
 	username := "testuser"
@@ -243,7 +243,7 @@ func TestAvalaraClient_GetUserRoles_RequestDetails(t *testing.T) {
 	// Create a test client with the mock transport.
 	httpClient := &http.Client{Transport: mockTransport}
 	baseHttpClient := uhttp.NewBaseHttpClient(httpClient)
-	client := NewAvalaraClient("sandbox", baseHttpClient)
+	client := NewAvalaraClient("sandbox", "", baseHttpClient)
 	client.AddCredentials("testuser", "testpass")
 
 	// Call GetUserRoles with nextLink.
@@ -673,7 +673,7 @@ func TestAvalaraClient_GetPermissions_RequestDetails(t *testing.T) {
 	// Create a test client with the mock transport.
 	httpClient := &http.Client{Transport: mockTransport}
 	baseHttpClient := uhttp.NewBaseHttpClient(httpClient)
-	client := NewAvalaraClient("sandbox", baseHttpClient)
+	client := NewAvalaraClient("sandbox", "", baseHttpClient)
 	client.AddCredentials("testuser", "testpass")
 
 	// Call GetPermissions.
@@ -874,7 +874,7 @@ func TestAvalaraClient_GetUserEntitlements_RequestDetails(t *testing.T) {
 	// Create a test client with the mock transport.
 	httpClient := &http.Client{Transport: mockTransport}
 	baseHttpClient := uhttp.NewBaseHttpClient(httpClient)
-	client := NewAvalaraClient("sandbox", baseHttpClient)
+	client := NewAvalaraClient("sandbox", "", baseHttpClient)
 	client.AddCredentials("testuser", "testpass")
 
 	// Call GetUserEntitlements.
@@ -952,7 +952,7 @@ func TestGetAvalaraClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			client, err := GetAvalaraClient(ctx, tc.environment, tc.username, tc.password)
+			client, err := GetAvalaraClient(ctx, tc.environment, "", tc.username, tc.password)
 
 			// Check for errors.
 			if err != nil {
@@ -1146,7 +1146,7 @@ func TestAvalaraClient_Ping_RequestDetails(t *testing.T) {
 	// Create a test client with the mock transport.
 	httpClient := &http.Client{Transport: mockTransport}
 	baseHttpClient := uhttp.NewBaseHttpClient(httpClient)
-	client := NewAvalaraClient("sandbox", baseHttpClient)
+	client := NewAvalaraClient("sandbox", "", baseHttpClient)
 	client.AddCredentials("testuser", "testpass")
 
 	// Call Ping.
