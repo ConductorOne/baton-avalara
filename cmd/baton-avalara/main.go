@@ -48,7 +48,7 @@ func getConnector(ctx context.Context, c *cfg.Avalara) (types.ConnectorServer, e
 		return nil, err
 	}
 
-	cb, err := connector.New(ctx, c.Environment, c.Username, c.Password)
+	cb, err := connector.New(ctx, c.Environment, c.BaseUrl, c.Username, c.Password)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

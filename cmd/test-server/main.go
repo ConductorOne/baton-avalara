@@ -76,7 +76,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Log the decoded credentials for debugging.
-		log.Printf("Decoded credentials: %s", string(payload))
+		log.Printf("Decoded credentials: %s", string(payload)) //nolint:gosec // G706: test-server only, debug logging of test credentials
 
 		pair := strings.SplitN(string(payload), ":", 2)
 		if len(pair) != 2 || pair[0] != "testuser" || pair[1] != "testpass" {
@@ -93,7 +93,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		log.Printf("Authentication successful for user: %s", pair[0])
+		log.Printf("Authentication successful for user: %s", pair[0]) //nolint:gosec // G706: test-server only, debug logging
 		next.ServeHTTP(w, r)
 	}
 }
@@ -417,9 +417,9 @@ func sendJSONResponse(w http.ResponseWriter, data interface{}) {
 }
 
 func logRequest(endpoint string, r *http.Request) {
-	log.Printf("Endpoint called: %s\n", endpoint)
-	log.Printf("  Method: %s\n", r.Method)
-	log.Printf("  Query parameters: %s\n", r.URL.RawQuery)
+	log.Printf("Endpoint called: %s\n", endpoint)         //nolint:gosec // G706: test-server only, debug logging
+	log.Printf("  Method: %s\n", r.Method)                //nolint:gosec // G706: test-server only, debug logging
+	log.Printf("  Query parameters: %s\n", r.URL.RawQuery) //nolint:gosec // G706: test-server only, debug logging
 
 	// Log headers.
 	log.Println("  Headers:")
