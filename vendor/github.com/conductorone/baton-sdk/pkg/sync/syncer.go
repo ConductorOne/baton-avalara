@@ -142,7 +142,7 @@ type syncer struct {
 	syncResourceTypes                   []string
 	previousSyncMu                      native_sync.Mutex
 	previousSyncIDPtr                   atomic.Pointer[string]
-	workerCount                         int // If 0, sequential sync is used. If > 0, parallel sync is used.
+	workerCount                         int // If 1, sync is sequential (default). If > 1, sync operations are done in parallel.
 }
 
 var _ Syncer = (*syncer)(nil)
@@ -229,6 +229,64 @@ func (s *syncer) handleProgress(ctx context.Context, a *Action, c int) {
 		count := uint32(c)
 		s.progressHandler(NewProgress(a, count))
 	}
+}
+
+// maxEntitlementsPerExclusionGroup caps how many entitlements may share a
+// single exclusion_group_id. Phase 1 limit.
+const maxEntitlementsPerExclusionGroup = 50
+
+// recordEntitlementExclusionGroup enforces the invariants on an exclusion
+// group membership: a given exclusion_group_id must stay within one resource
+// type, a group may have at most one entitlement marked is_default, and a group
+// may contain at most maxEntitlementsPerExclusionGroup entitlements. Empty
+// group ids are treated as "no exclusion group" and skipped.
+func (s *syncer) recordEntitlementExclusionGroup(eg *v2.EntitlementExclusionGroup, entitlementID, resourceTypeID string) error {
+	groupID := eg.GetExclusionGroupId()
+	if groupID == "" {
+		return nil
+	}
+	if existing, conflict := s.state.CheckAndSetExclusionGroupResourceType(groupID, resourceTypeID); conflict {
+		return fmt.Errorf("exclusion group %q is used on multiple resource types (%q and %q); "+
+			"exclusion groups may span resources but must be scoped to a single resource type",
+			groupID, existing, resourceTypeID)
+	}
+	if eg.GetIsDefault() {
+		if existing, conflict := s.state.CheckAndSetExclusionGroupDefault(groupID, entitlementID); conflict {
+			return fmt.Errorf("exclusion group %q has multiple default entitlements (%q and %q); "+
+				"at most one entitlement per exclusion group may set is_default=true",
+				groupID, existing, entitlementID)
+		}
+	}
+	if count := s.state.IncrementExclusionGroupCount(groupID); count > maxEntitlementsPerExclusionGroup {
+		return fmt.Errorf("exclusion group %q has too many entitlements (%d); "+
+			"at most %d entitlements are allowed per exclusion group",
+			groupID, count, maxEntitlementsPerExclusionGroup)
+	}
+	return nil
+}
+
+// validateEntitlementExclusionGroups picks the exclusion group annotation off
+// each entitlement (if present) and forwards to recordEntitlementExclusionGroup.
+// Use this on lists of entitlements that may independently carry exclusion
+// group annotations (e.g., the dynamic ListEntitlements path); callers that
+// already have the annotation in hand should call recordEntitlementExclusionGroup
+// directly to avoid the per-entitlement Pick.
+func (s *syncer) validateEntitlementExclusionGroups(ents []*v2.Entitlement) error {
+	for _, ent := range ents {
+		eg := &v2.EntitlementExclusionGroup{}
+		entAnnos := annotations.Annotations(ent.GetAnnotations())
+		ok, err := entAnnos.Pick(eg)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if err := s.recordEntitlementExclusionGroup(eg, ent.GetId(), ent.GetResource().GetId().GetResourceType()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // nextPageOrFinishAction updates the action with the next page token, or if there is no next page, finishes the action.
@@ -452,21 +510,14 @@ func (s *syncer) Sync(ctx context.Context) error {
 		)
 	}
 
-	var warnings []error
-	if s.workerCount == 0 {
-		warnings, err = s.sequentialSync(ctx, runCtx, targetedResources)
-		if err != nil {
-			return err
-		}
-	} else {
-		warnings, err = s.parallelSync(ctx, runCtx, targetedResources)
-		if err != nil {
-			return err
-		}
+	warnings, err := s.parallelSync(ctx, runCtx, targetedResources)
+	if err != nil {
+		return err
 	}
 
 	// Force a checkpoint to clear completed actions & entitlement graph in sync_token.
 	s.state.ClearEntitlementGraph(ctx)
+	s.state.ClearExclusionGroupTracking(ctx)
 
 	err = s.Checkpoint(ctx, true)
 	if err != nil {
@@ -1109,6 +1160,9 @@ func (s *syncer) syncEntitlementsForResource(ctx context.Context, action *Action
 	if err != nil {
 		return err
 	}
+	if err := s.validateEntitlementExclusionGroups(resp.GetList()); err != nil {
+		return err
+	}
 	err = s.store.PutEntitlements(ctx, resp.GetList()...)
 	if err != nil {
 		return err
@@ -1208,9 +1262,16 @@ func (s *syncer) syncStaticEntitlementsForResourceType(ctx context.Context, acti
 					annos.Update(exclusionGroup)
 				}
 
+				entID := entitlement.NewEntitlementID(resource, ent.GetSlug())
+				if hasExclusionGroup {
+					if err := s.recordEntitlementExclusionGroup(exclusionGroup, entID, resource.GetId().GetResourceType()); err != nil {
+						return err
+					}
+				}
+
 				entitlements = append(entitlements, &v2.Entitlement{
 					Resource:    resource,
-					Id:          entitlement.NewEntitlementID(resource, ent.GetSlug()),
+					Id:          entID,
 					DisplayName: displayName,
 					Description: description,
 					GrantableTo: ent.GetGrantableTo(),
@@ -1670,6 +1731,32 @@ func (s *syncer) fetchEtaggedGrantsForResource(
 		for _, g := range prevGrantsResp.GetList() {
 			if g.GetEntitlement().GetId() != etagMatch.GetEntitlementId() {
 				continue
+			}
+
+			// Replayed grants are read back from the store, which on a
+			// slim engine (Pebble) returns an identity-only stub for
+			// grant.Entitlement.Resource. Downstream handling in
+			// syncGrantsForResource reads rich fields off that resource
+			// (InsertResourceGrants re-writes it to the resources table;
+			// the related-resource fetch reads its parent). That is only
+			// safe because the grant's entitlement-resource equals the
+			// resource we're syncing — which the syncGrantsForResource
+			// etag-update re-writes full afterward, masking any stub.
+			//
+			// That equality is enforced by the ListGrants(Resource=...)
+			// filter above, not by the data model, so assert it. If it
+			// is ever violated, a stub resource for some OTHER resource
+			// would be persisted (no etag-update to mask it) — fail loud
+			// here rather than corrupt the resources table silently.
+			gr := g.GetEntitlement().GetResource().GetId()
+			if gr.GetResourceType() != resource.GetId().GetResourceType() ||
+				gr.GetResource() != resource.GetId().GetResource() {
+				return nil, false, fmt.Errorf(
+					"etag replay: grant %q entitlement-resource %s/%s does not match synced resource %s/%s",
+					g.GetId(),
+					gr.GetResourceType(), gr.GetResource(),
+					resource.GetId().GetResourceType(), resource.GetId().GetResource(),
+				)
 			}
 			ret = append(ret, g)
 		}
@@ -2622,21 +2709,52 @@ func (s *syncer) wireCountsDBSizeProvider() {
 }
 
 // Close closes the datastorage to ensure it is updated on disk.
+//
+// The store close, SaveC1Z (S3 upload), and manager close all run on a
+// context detached from the caller's cancellation. Caller may be a
+// Temporal activity whose deadline has already fired or is about to; we
+// still need to commit the c1z and upload it cleanly. The detached
+// context is bounded by dotc1z.FinalizeTimeout() so a wedged finalize
+// cannot pin a worker indefinitely. A new-root span linked to syncer.Close
+// keeps the upload subtree from inflating very long sync traces.
 func (s *syncer) Close(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "syncer.Close")
 	var err error
 	defer func() { uotel.EndSpanWithError(span, err) }()
 
+	parentCtxErrLabel := uotel.ClassifyCtxErr(ctx.Err())
+	timeout := dotc1z.FinalizeTimeout()
+	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	// Propagate the original caller's ctx-error label across the detach
+	// so downstream finalize spans (e.g. C1File.finalize) can record
+	// what the caller actually saw — without this, the nested span
+	// would re-classify our already-detached ctx and always report
+	// parent_ctx_err="nil".
+	finalizeCtx = uotel.WithParentCtxErrLabel(finalizeCtx, parentCtxErrLabel)
+	finalizeCtx, finalizeSpan := uotel.StartWithLink(finalizeCtx, tracer, "syncer.finalize")
+	finalizeSpan.SetAttributes(
+		attribute.Bool("c1z.finalize.cancel_observed", parentCtxErrLabel != "nil"),
+		attribute.String("c1z.finalize.parent_ctx_err", parentCtxErrLabel),
+		attribute.Int64("c1z.finalize.timeout_seconds", int64(timeout.Seconds())),
+	)
+	defer func() { uotel.EndSpanWithError(finalizeSpan, err) }()
+
 	var errs []error
 
 	var storeCloseErr error
 	if s.store != nil {
-		storeCloseErr = s.store.Close(ctx)
+		storeCloseErr = s.store.Close(finalizeCtx)
 		if storeCloseErr != nil {
 			errs = append(errs, fmt.Errorf("error closing store: %w", storeCloseErr))
 		}
 	}
 
+	// The external resource reader is read-only and has no durable
+	// state to commit — closing it on the caller's ctx (not the
+	// detached finalizeCtx) keeps a hung close from holding the
+	// syncer past the caller's deadline for no commit-correctness
+	// benefit.
 	if s.externalResourceReader != nil {
 		if err := s.externalResourceReader.Close(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("error closing external resource reader: %w", err))
@@ -2648,18 +2766,19 @@ func (s *syncer) Close(ctx context.Context) error {
 		// failed to close (e.g. WAL checkpoint failure), saving would
 		// persist a potentially corrupt state.
 		if storeCloseErr == nil {
-			if err := s.c1zManager.SaveC1Z(ctx); err != nil {
+			if err := s.c1zManager.SaveC1Z(finalizeCtx); err != nil {
 				errs = append(errs, err)
 			}
 		}
 		// Always close the manager to clean up temp files, even if save
 		// was skipped or failed.
-		if err := s.c1zManager.Close(ctx); err != nil {
+		if err := s.c1zManager.Close(finalizeCtx); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
-	return errors.Join(errs...)
+	err = errors.Join(errs...)
+	return err
 }
 
 type SyncOpt func(s *syncer)
@@ -2813,14 +2932,13 @@ func NormalizeWorkerCount(count int) int {
 	if count == -1 {
 		return min(max(runtime.GOMAXPROCS(0), 1), 4)
 	}
-	return max(count, 0)
+	return max(count, 1)
 }
 
 // WithWorkerCount sets the number of workers to use.
-// If 0, sequential sync is used. If > 0, parallel sync is used.
+// If <=1, 1 worker is used (default). If > 1, parallel sync is used.
 // If -1, the number of workers is set to the number of CPU cores or 4, whichever is lower.
-// If < -1, sequential sync is used.
-// Yes, this allows for a "parallel" sync with one worker, effectively making it sequential.
+// If < -1, 1 worker is used. (Nothing should do this, but there's no way to return an error in this option.)
 func WithWorkerCount(count int) SyncOpt {
 	return func(s *syncer) {
 		s.workerCount = NormalizeWorkerCount(count)
@@ -2830,8 +2948,9 @@ func WithWorkerCount(count int) SyncOpt {
 // NewSyncer returns a new syncer object.
 func NewSyncer(ctx context.Context, c types.ConnectorClient, opts ...SyncOpt) (Syncer, error) {
 	s := &syncer{
-		connector: c,
-		syncType:  connectorstore.SyncTypeFull,
+		connector:   c,
+		syncType:    connectorstore.SyncTypeFull,
+		workerCount: 1,
 	}
 
 	for _, o := range opts {
@@ -2843,9 +2962,6 @@ func NewSyncer(ctx context.Context, c types.ConnectorClient, opts ...SyncOpt) (S
 	}
 
 	progressLogOpts := []progresslog.Option{}
-	if s.workerCount > 0 {
-		progressLogOpts = append(progressLogOpts, progresslog.WithSequentialMode(false))
-	}
 	s.counts = progresslog.NewProgressCounts(ctx, progressLogOpts...)
 	// Wire the DBSizeProvider now if the store is already set (WithConnectorStore
 	// case). For WithC1ZPath, the store is populated later inside loadStore,
