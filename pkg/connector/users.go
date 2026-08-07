@@ -105,8 +105,6 @@ func userResource(ctx context.Context, user *avalaraclient.UserModel, parent *v2
 	}
 
 	userTraitOptions := []rs.UserTraitOption{
-		rs.WithUserProfile(profile),
-		rs.WithStatus(status),
 		rs.WithUserLogin(user.UserName),
 		rs.WithEmail(user.Email, true),
 	}
@@ -116,6 +114,8 @@ func userResource(ctx context.Context, user *avalaraclient.UserModel, parent *v2
 		userResourceType,
 		user.ID,
 		userTraitOptions,
+		rs.WithResourceProfile(profile),
+		rs.WithResourceStatus(v2.Status_ResourceStatus(status), ""),
 		rs.WithParentResourceID(parent),
 	)
 	if err != nil {

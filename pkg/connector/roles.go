@@ -55,12 +55,11 @@ func (r *roleBuilder) List(
 			role.Description,
 			roleResourceType,
 			strconv.Itoa(role.ID),
-			[]rs.RoleTraitOption{
-				rs.WithRoleProfile(map[string]interface{}{
-					"id":          strconv.Itoa(role.ID),
-					"description": role.Description,
-				}),
-			},
+			[]rs.RoleTraitOption{},
+			rs.WithResourceProfile(map[string]interface{}{
+				"id":          strconv.Itoa(role.ID),
+				"description": role.Description,
+			}),
 			rs.WithParentResourceID(parentResourceID),
 		)
 		if err != nil {
@@ -90,12 +89,7 @@ func newRoleBuilder(client *avalaraclient.AvalaraClient) *roleBuilder {
 func (r *roleBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	var rv []*v2.Grant
 
-	roleTrait, err := rs.GetRoleTrait(resource)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("avalara-connector: failed to get role trait: %w", err)
-	}
-
-	roleDescription, ok := rs.GetProfileStringValue(roleTrait.Profile, "description")
+	roleDescription, ok := rs.GetProfileStringValue(rs.GetProfile(resource), "description")
 	if !ok {
 		return nil, "", nil, fmt.Errorf("avalara-connector: failed to get role description from profile")
 	}
