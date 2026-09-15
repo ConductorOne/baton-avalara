@@ -32,7 +32,7 @@ jobs:
       - name: Run baton-avalara
         run: ./baton-avalara
       - name: Install baton
-        run: ./scripts/get-baton.sh && mv baton /usr/local/bin
+        uses: ConductorOne/github-workflows/actions/get-baton@v4
       - name: Check synced data
         run: |
           # Check entitlements
