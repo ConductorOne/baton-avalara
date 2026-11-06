@@ -6,8 +6,6 @@ import (
 
 	avalaraclient "github.com/conductorone/baton-avalara/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 )
 
@@ -25,8 +23,8 @@ func (o *userBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
 func (o *userBuilder) List(
 	ctx context.Context,
 	parentResourceID *v2.ResourceId,
-	pToken *pagination.Token,
-) ([]*v2.Resource, string, annotations.Annotations, error) {
+	opts rs.SyncOpAttrs,
+) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	pageSize := 100
 	var users []*v2.Resource
 
@@ -35,19 +33,19 @@ func (o *userBuilder) List(
 		Skip: 0,
 	}
 
-	if pToken != nil && pToken.Token != "" {
-		options.NextLink = pToken.Token
+	if opts.PageToken.Token != "" {
+		options.NextLink = opts.PageToken.Token
 	}
 
 	resp, nextOptions, err := o.client.GetUsers(ctx, options)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("failed to get users: %w", err)
+		return nil, nil, fmt.Errorf("baton-avalara: failed to get users: %w", err)
 	}
 
 	for _, user := range resp.Value {
 		resource, err := userResource(ctx, &user, parentResourceID)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("failed to create user resource: %w", err)
+			return nil, nil, fmt.Errorf("baton-avalara: failed to create user resource: %w", err)
 		}
 		users = append(users, resource)
 	}
@@ -57,25 +55,25 @@ func (o *userBuilder) List(
 		nextPageToken = nextOptions.NextLink
 	}
 
-	return users, nextPageToken, nil, nil
+	return users, &rs.SyncOpResults{NextPageToken: nextPageToken}, nil
 }
 
 // Entitlements always returns an empty slice for users.
 func (o *userBuilder) Entitlements(
 	_ context.Context,
 	resource *v2.Resource,
-	_ *pagination.Token,
-) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	_ rs.SyncOpAttrs,
+) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
 // Grants always returns an empty slice for users since they don't have any entitlements.
 func (o *userBuilder) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
-	pToken *pagination.Token,
-) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	_ rs.SyncOpAttrs,
+) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
 func newUserBuilder(client *avalaraclient.AvalaraClient) *userBuilder {

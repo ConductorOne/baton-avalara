@@ -10,7 +10,28 @@ import (
 
 func TestConfigs(t *testing.T) {
 	testCases := []test.TestCase{
-		// Add test cases here.
+		{
+			Configs: map[string]string{
+				"username": "user",
+				"password": "pass",
+			},
+			IsValid: true,
+			Message: "valid config",
+		},
+		{
+			Configs: map[string]string{
+				"password": "pass",
+			},
+			IsValid: false,
+			Message: "missing username",
+		},
+		{
+			Configs: map[string]string{
+				"username": "user",
+			},
+			IsValid: false,
+			Message: "missing password",
+		},
 	}
 
 	test.ExerciseTestCases(t, cfg.Config, func(v *viper.Viper) error {
