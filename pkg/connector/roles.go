@@ -49,15 +49,16 @@ func (r *roleBuilder) List(
 	}
 
 	for _, role := range roles.Value {
+		profile := map[string]interface{}{
+			"id":          strconv.Itoa(role.ID),
+			"description": role.Description,
+		}
 		resource, err := rs.NewRoleResource(
 			role.Description,
 			roleResourceType,
 			strconv.Itoa(role.ID),
-			[]rs.RoleTraitOption{},
-			rs.WithResourceProfile(map[string]interface{}{
-				"id":          strconv.Itoa(role.ID),
-				"description": role.Description,
-			}),
+			[]rs.RoleTraitOption{rs.WithRoleProfile(profile)},
+			rs.WithResourceProfile(profile),
 			rs.WithParentResourceID(parentResourceID),
 		)
 		if err != nil {
