@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,9 +19,15 @@ func newTestServer(t *testing.T, st State) *httptest.Server {
 	return ts
 }
 
-func do(t *testing.T, method, url, body, pass string) (*http.Response, map[string]interface{}) {
+// result is a closed response: status, headers and decoded JSON body.
+type result struct {
+	StatusCode int
+	Header     http.Header
+}
+
+func do(t *testing.T, method, url, body, pass string) (result, map[string]interface{}) {
 	t.Helper()
-	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), method, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,10 +40,10 @@ func do(t *testing.T, method, url, body, pass string) (*http.Response, map[strin
 	defer resp.Body.Close()
 	out := map[string]interface{}{}
 	_ = json.NewDecoder(resp.Body).Decode(&out)
-	return resp, out
+	return result{StatusCode: resp.StatusCode, Header: resp.Header}, out
 }
 
-func get(t *testing.T, url string) (*http.Response, map[string]interface{}) {
+func get(t *testing.T, url string) (result, map[string]interface{}) {
 	return do(t, http.MethodGet, url, "", "testpass")
 }
 
@@ -82,7 +89,7 @@ func TestLargeSkipDoesNotPanic(t *testing.T) {
 	ts := newTestServer(t, defaultState())
 	for _, p := range []string{"/api/v2/definitions/securityroles?$skip=9999", "/api/v2/users?$skip=9999&$top=5"} {
 		resp, body := get(t, ts.URL+p)
-		if resp.StatusCode != 200 || len(body["value"].([]interface{})) != 0 {
+		if resp.StatusCode != http.StatusOK || len(body["value"].([]interface{})) != 0 {
 			t.Fatalf("%s: status %d body %v", p, resp.StatusCode, body)
 		}
 		if _, ok := body["@nextLink"]; ok {
@@ -120,7 +127,7 @@ func TestFaults(t *testing.T) {
 	}
 	for i := 0; i < 2; i++ {
 		resp, body := get(t, ts.URL+"/api/v2/users")
-		if resp.StatusCode != 429 || resp.Header.Get("Retry-After") != "2" {
+		if resp.StatusCode != http.StatusTooManyRequests || resp.Header.Get("Retry-After") != "2" {
 			t.Fatalf("want 429 with Retry-After, got %d", resp.StatusCode)
 		}
 		e := body["error"].(map[string]interface{})
@@ -128,13 +135,13 @@ func TestFaults(t *testing.T) {
 			t.Fatalf("details must be a list: %v", e)
 		}
 	}
-	if resp, _ := get(t, ts.URL+"/api/v2/users"); resp.StatusCode != 200 {
+	if resp, _ := get(t, ts.URL+"/api/v2/users"); resp.StatusCode != http.StatusOK {
 		t.Fatalf("fault should be used up, got %d", resp.StatusCode)
 	}
 	// Other paths are not affected, and DELETE clears rules.
 	do(t, http.MethodPost, ts.URL+"/_mock/faults", `{"path":"/api/v2/users","status":500}`, "")
 	do(t, http.MethodDelete, ts.URL+"/_mock/faults", "", "")
-	if resp, _ := get(t, ts.URL+"/api/v2/users"); resp.StatusCode != 200 {
+	if resp, _ := get(t, ts.URL+"/api/v2/users"); resp.StatusCode != http.StatusOK {
 		t.Fatalf("faults not cleared")
 	}
 	_, stats := get(t, ts.URL+"/_mock/stats")
@@ -148,10 +155,10 @@ func TestAdminChanges(t *testing.T) {
 	_, u := do(t, http.MethodPost, ts.URL+"/_mock/users", `{"userName":"new","securityRoleId":"FirmUser","isActive":true}`, "")
 	id := int(u["id"].(float64))
 	_, _ = do(t, http.MethodPatch, ts.URL+"/_mock/users/12345", `{"securityRoleId":"SystemAdmin","isActive":false}`, "")
-	if resp, _ := do(t, http.MethodDelete, ts.URL+"/_mock/users/67890", "", ""); resp.StatusCode != 204 {
+	if resp, _ := do(t, http.MethodDelete, ts.URL+"/_mock/users/67890", "", ""); resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("delete status %d", resp.StatusCode)
 	}
-	if resp, _ := do(t, http.MethodPatch, ts.URL+"/_mock/users/1", `{}`, ""); resp.StatusCode != 404 {
+	if resp, _ := do(t, http.MethodPatch, ts.URL+"/_mock/users/1", `{}`, ""); resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("want 404")
 	}
 
@@ -190,25 +197,25 @@ func TestAdminChanges(t *testing.T) {
 func TestPingWrongCredentials(t *testing.T) {
 	ts := newTestServer(t, defaultState())
 	resp, body := do(t, http.MethodGet, ts.URL+"/api/v2/utilities/ping", "", "wrong")
-	if resp.StatusCode != 200 || body["authenticated"] != false {
+	if resp.StatusCode != http.StatusOK || body["authenticated"] != false {
 		t.Fatalf("want 200 authenticated=false, got %d %v", resp.StatusCode, body)
 	}
 	resp, body = do(t, http.MethodGet, ts.URL+"/api/v2/users", "", "wrong")
-	if resp.StatusCode != 401 || body["error"] == nil {
+	if resp.StatusCode != http.StatusUnauthorized || body["error"] == nil {
 		t.Fatalf("want 401 error body, got %d", resp.StatusCode)
 	}
 
 	ts401 := httptest.NewServer(newHandler(config{Username: "testuser", Password: "testpass", Ping401: true}, defaultState()))
 	defer ts401.Close()
 	resp, _ = do(t, http.MethodGet, ts401.URL+"/api/v2/utilities/ping", "", "wrong")
-	if resp.StatusCode != 401 {
+	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("want 401 with Ping401, got %d", resp.StatusCode)
 	}
 }
 
 func TestAdminLoopbackOnly(t *testing.T) {
 	h := newHandler(config{Username: "u", Password: "p"}, defaultState())
-	req := httptest.NewRequest(http.MethodGet, "/_mock/stats", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/_mock/stats", nil)
 	req.RemoteAddr = "10.1.2.3:5555"
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)

@@ -3,6 +3,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,13 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	addr := flag.String("addr", ":8080", "listen address")
 	username := flag.String("username", "testuser", "accepted Basic auth username")
 	password := flag.String("password", "testpass", "accepted Basic auth password")
@@ -22,12 +30,12 @@ func main() {
 
 	state := defaultState()
 	if *fixture != "" {
-		data, err := os.ReadFile(*fixture) //nolint:gosec // path comes from the operator.
+		data, err := os.ReadFile(*fixture)
 		if err != nil {
-			log.Fatalf("read fixture: %v", err)
+			return fmt.Errorf("read fixture: %w", err)
 		}
 		if state, err = decodeState(data); err != nil {
-			log.Fatalf("parse fixture: %v", err)
+			return fmt.Errorf("parse fixture: %w", err)
 		}
 	}
 	if *users > 0 {
@@ -41,5 +49,5 @@ func main() {
 		Handler:           newHandler(cfg, state),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	log.Fatal(srv.ListenAndServe())
+	return srv.ListenAndServe()
 }
