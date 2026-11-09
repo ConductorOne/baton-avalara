@@ -57,7 +57,7 @@ func (r *roleBuilder) List(
 			role.Description,
 			roleResourceType,
 			strconv.Itoa(role.ID),
-			[]rs.RoleTraitOption{rs.WithRoleProfile(profile)},
+			[]rs.RoleTraitOption{},
 			rs.WithResourceProfile(profile),
 			rs.WithParentResourceID(parentResourceID),
 		)

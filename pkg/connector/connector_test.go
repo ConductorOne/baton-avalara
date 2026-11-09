@@ -95,22 +95,12 @@ func TestRoleListPassthrough(t *testing.T) {
 	if len(rv) != 1 || rv[0].Id.Resource != "10" || res.NextPageToken == "" {
 		t.Fatalf("unexpected first page: %+v token %q", rv, res.NextPageToken)
 	}
-	// The profile must be set on the resource and on the role trait.
+	// The profile is set on the resource only.
 	if d, ok := rs.GetProfileStringValue(rs.GetProfile(rv[0]), "description"); !ok || d != "One" {
 		t.Errorf("resource profile description = %q, %v", d, ok)
 	}
 	if id, ok := rs.GetProfileStringValue(rs.GetProfile(rv[0]), "id"); !ok || id != "10" {
 		t.Errorf("resource profile id = %q, %v", id, ok)
-	}
-	trait, err := rs.GetRoleTrait(rv[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if d, ok := rs.GetProfileStringValue(trait.GetProfile(), "description"); !ok || d != "One" {
-		t.Errorf("trait profile description = %q, %v", d, ok)
-	}
-	if id, ok := rs.GetProfileStringValue(trait.GetProfile(), "id"); !ok || id != "10" {
-		t.Errorf("trait profile id = %q, %v", id, ok)
 	}
 	rv, res, err = rb.List(context.Background(), nil, opts(res.NextPageToken))
 	if err != nil {
