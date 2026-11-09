@@ -1,0 +1,16 @@
+{
+  "roles": [
+    {"id": 1, "description": "AccountAdmin"},
+    {"id": 2, "description": "AccountUser"},
+    {"id": 3, "description": "Compliance Root User"},
+    {"id": 4, "description": "CompanyAdmin"},
+    {"id": 5, "description": "CompanyUser"}
+  ],
+  "users": [
+    {"id": 1001, "accountId": 123456789, "companyId": 123456, "userName": "adminAnna", "firstName": "Anna", "lastName": "Admin", "email": "anna@example.org", "postalCode": "98110", "securityRoleId": "AccountAdmin", "passwordStatus": "UserCanChange", "isActive": true, "suppressNewUserEmail": false, "isDeleted": false},
+    {"id": 1002, "accountId": 123456789, "companyId": 123456, "userName": "userUma", "firstName": "Uma", "lastName": "User", "email": "uma@example.org", "postalCode": "98111", "securityRoleId": "AccountUser", "passwordStatus": "UserCanChange", "isActive": true, "suppressNewUserEmail": false, "isDeleted": false},
+    {"id": 1003, "accountId": 123456789, "companyId": 123457, "userName": "rootRita", "firstName": "Rita", "lastName": "Root", "email": "rita@example.org", "postalCode": "98112", "securityRoleId": "ComplianceRootUser", "passwordStatus": "UserCanChange", "isActive": true, "suppressNewUserEmail": false, "isDeleted": false},
+    {"id": 1004, "accountId": 123456789, "companyId": 123457, "userName": "sleepySam", "firstName": "Sam", "lastName": "Sleepy", "email": "sam@example.org", "postalCode": "98113", "securityRoleId": "CompanyUser", "passwordStatus": "UserCanChange", "isActive": false, "suppressNewUserEmail": false, "isDeleted": false},
+    {"id": 1005, "accountId": 123456789, "companyId": 123458, "userName": "orphanOwen", "firstName": "Owen", "lastName": "Orphan", "email": "owen@example.org", "postalCode": "98114", "securityRoleId": "NoSuchRole", "passwordStatus": "UserCanChange", "isActive": true, "suppressNewUserEmail": false, "isDeleted": false}
+  ]
+}
