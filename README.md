@@ -1,4 +1,4 @@
-![Baton Logo](./docs/images/baton-logo.png)
+![Baton Logo](./baton-logo.png)
 
 # `baton-avalara` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-avalara.svg)](https://pkg.go.dev/github.com/conductorone/baton-avalara) ![ci](https://github.com/conductorone/baton-avalara/actions/workflows/ci.yaml/badge.svg) ![verify](https://github.com/conductorone/baton-avalara/actions/workflows/verify.yaml/badge.svg)
 
