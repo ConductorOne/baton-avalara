@@ -96,7 +96,6 @@
       "name": "username",
       "displayName": "Username",
       "description": "The Avalara username used to connect to the Avalara API",
-      "placeholder": "Your Avalara username",
       "isRequired": true,
       "stringField": {
         "rules": {
@@ -108,7 +107,6 @@
       "name": "password",
       "displayName": "Password",
       "description": "The Avalara password used to connect to the Avalara API",
-      "placeholder": "Your Avalara password",
       "isRequired": true,
       "isSecret": true,
       "stringField": {
@@ -121,7 +119,6 @@
       "name": "environment",
       "displayName": "Environment",
       "description": "The Avalara environment to connect to (production or sandbox)",
-      "placeholder": "Production or sandbox",
       "stringField": {
         "defaultValue": "production"
       }
