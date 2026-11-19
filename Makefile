@@ -29,8 +29,8 @@ update-deps:
 	go mod tidy -v
 	go mod vendor
 
-.PHONY: add-dep
-add-dep:
+.PHONY: add-deps
+add-deps:
 	go mod tidy -v
 	go mod vendor
 

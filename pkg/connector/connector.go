@@ -6,8 +6,10 @@ import (
 	"io"
 
 	avalaraclient "github.com/conductorone/baton-avalara/pkg/client"
+	cfg "github.com/conductorone/baton-avalara/pkg/config"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 )
 
@@ -16,8 +18,8 @@ type Avalara struct {
 }
 
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
-func (d *Avalara) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return []connectorbuilder.ResourceSyncer{
+func (d *Avalara) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
+	return []connectorbuilder.ResourceSyncerV2{
 		newUserBuilder(d.client),
 		newRoleBuilder(d.client),
 	}
@@ -55,18 +57,11 @@ func (d *Avalara) Validate(ctx context.Context) (annotations.Annotations, error)
 }
 
 // New returns a new instance of the connector.
-func New(
-	ctx context.Context,
-	environment string,
-	baseURL string,
-	username, password string,
-) (*Avalara, error) {
-	client, err := avalaraclient.GetAvalaraClient(ctx, environment, baseURL, username, password)
+func New(ctx context.Context, c *cfg.Avalara, _ *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
+	client, err := avalaraclient.GetAvalaraClient(ctx, c.Environment, c.BaseUrl, c.Username, c.Password)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("baton-avalara: failed to create client: %w", err)
 	}
 
-	return &Avalara{
-		client: client,
-	}, nil
+	return &Avalara{client: client}, nil, nil
 }
