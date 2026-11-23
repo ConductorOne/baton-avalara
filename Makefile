@@ -50,3 +50,8 @@ test-server: ## Run the test server
 targets:
 	@echo "Available targets:"
 	@awk -F ':' '/^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+
+.PHONY: mock-server
+mock-server: ## Build and run the Avalara mock server (see docs/mock-server.md)
+	go build -o test-server ./cmd/test-server
+	./test-server --addr 127.0.0.1:18080
